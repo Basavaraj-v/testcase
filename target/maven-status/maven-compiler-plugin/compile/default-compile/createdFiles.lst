@@ -1,0 +1,17 @@
+com\smartwaste\server\WasteMonitorServer$ReportsHandler.class
+com\smartwaste\server\WasteMonitorServer$EmptyBinHandler.class
+com\smartwaste\model\TelemetryData.class
+com\smartwaste\model\CitizenReport.class
+com\smartwaste\server\WasteMonitorServer$StatsHandler.class
+com\smartwaste\service\RouteOptimizationService.class
+com\smartwaste\SmartWasteApplication.class
+com\smartwaste\service\ReportService.class
+com\smartwaste\server\WasteMonitorServer$TelemetryHandler.class
+com\smartwaste\server\WasteMonitorServer$RouteOptimizationHandler.class
+com\smartwaste\server\WasteMonitorServer$BinsHandler.class
+com\smartwaste\server\WasteMonitorServer$StaticFileHandler.class
+com\smartwaste\service\BinService.class
+com\smartwaste\model\RoutePoint.class
+com\smartwaste\model\Bin.class
+com\smartwaste\server\WasteMonitorServer.class
+com\smartwaste\model\Truck.class

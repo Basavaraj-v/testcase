@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoRoute | Smart Public Waste Collection & Monitoring System</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top Navigation Header -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="logo-icon"><i class="fa-solid fa-recycle"></i></div>
+      <div class="brand-text">
+        <h1>EcoRoute <span class="badge-java">Java Enterprise</span></h1>
+        <p>Public Waste Collection &amp; Dynamic Route Optimization</p>
+      </div>
+    </div>
+
+    <!-- Quick Metrics Strip -->
+    <div class="quick-stats">
+      <div class="stat-pill">
+        <i class="fa-solid fa-trash-can text-primary"></i>
+        <div>
+          <span class="stat-val" id="stat-total-bins">8</span>
+          <span class="stat-lbl">Active Bins</span>
+        </div>
+      </div>
+      <div class="stat-pill alert-pill">
+        <i class="fa-solid fa-triangle-exclamation text-danger"></i>
+        <div>
+          <span class="stat-val" id="stat-critical-bins">3</span>
+          <span class="stat-lbl">Critical (&gt;80%)</span>
+        </div>
+      </div>
+      <div class="stat-pill">
+        <i class="fa-solid fa-truck-moving text-warning"></i>
+        <div>
+          <span class="stat-val" id="stat-trucks-active">1</span>
+          <span class="stat-lbl">Trucks Dispatched</span>
+        </div>
+      </div>
+      <div class="stat-pill">
+        <i class="fa-solid fa-leaf text-success"></i>
+        <div>
+          <span class="stat-val" id="stat-co2-saved">18.4 kg</span>
+          <span class="stat-lbl">CO₂ Offset</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="nav-actions">
+      <div class="connection-status" id="connection-badge">
+        <span class="status-dot"></span>
+        <span id="backend-status-text">Connecting to Java...</span>
+      </div>
+      <button class="btn btn-simulator" id="btn-toggle-sim">
+        <i class="fa-solid fa-microchip"></i> IoT Simulator
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="app-layout">
+    <!-- Navigation Sidebar / Tabs -->
+    <aside class="sidebar">
+      <nav class="nav-menu">
+        <button class="nav-tab active" data-tab="map-view">
+          <i class="fa-solid fa-map-location-dot"></i> Live City GIS Map
+        </button>
+        <button class="nav-tab" data-tab="bins-view">
+          <i class="fa-solid fa-layer-group"></i> Smart Bin Telemetry
+        </button>
+        <button class="nav-tab" data-tab="route-view">
+          <i class="fa-solid fa-route"></i> TSP Route Dispatch
+        </button>
+        <button class="nav-tab" data-tab="reports-view">
+          <i class="fa-solid fa-bullhorn"></i> Citizen Grievances
+        </button>
+        <button class="nav-tab" data-tab="analytics-view">
+          <i class="fa-solid fa-chart-pie"></i> Waste Analytics
+        </button>
+      </nav>
+
+      <!-- Live Critical Alerts Box -->
+      <div class="sidebar-alerts">
+        <div class="alerts-header">
+          <i class="fa-solid fa-bell"></i> Live Alerts
+          <span class="badge-count" id="alerts-count">2</span>
+        </div>
+        <div class="alerts-list" id="alerts-list">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <section class="content-viewport">
+
+      <!-- TAB 1: Live City Map -->
+      <div class="tab-pane active" id="tab-map-view">
+        <!-- Easy Map Guide Banner -->
+        <div class="map-easy-guide" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-main); flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <strong style="color: var(--primary); display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-map-location-dot"></i> Simple Map Guide:</strong>
+            <span>🔴 <strong style="color: #f87171;">Red Pins</strong> = Full / Urgent (&gt;80%)</span>
+            <span>🟡 <strong style="color: #fbbf24;">Yellow Pins</strong> = Warning (60-79%)</span>
+            <span>🟢 <strong style="color: #34d399;">Green Pins</strong> = Normal / Clean (&lt;60%)</span>
+            <span>🟣 <strong>Purple Depot</strong> = Truck Garage</span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">
+            💡 <em>Click any pin to inspect or empty a bin!</em>
+          </div>
+        </div>
+
+        <div class="map-controls-bar">
+          <div class="filter-group">
+            <span class="filter-label">Filter Bins:</span>
+            <button class="btn-filter active" data-filter="ALL">All Bins</button>
+            <button class="btn-filter" data-filter="CRITICAL">Critical Only (&gt;80%)</button>
+            <button class="btn-filter" data-filter="ORGANIC">Organic</button>
+            <button class="btn-filter" data-filter="RECYCLABLE">Recyclable</button>
+          </div>
+          <div class="map-actions">
+            <button class="btn btn-primary" id="btn-recalculate-route">
+              <i class="fa-solid fa-arrows-rotate"></i> Re-Calculate Java TSP Route
+            </button>
+            <button class="btn btn-outline" id="btn-simulate-truck-run">
+              <i class="fa-solid fa-play"></i> Simulate Truck Collection
+            </button>
+          </div>
+        </div>
+
+        <div class="map-wrapper">
+          <div id="city-map"></div>
+          <!-- Floating Legend -->
+          <div class="map-legend">
+            <h4>Bin Status Legend</h4>
+            <div class="legend-item"><span class="legend-color dot-critical"></span> Critical (&ge; 80% Full)</div>
+            <div class="legend-item"><span class="legend-color dot-warning"></span> Warning (60% - 79%)</div>
+            <div class="legend-item"><span class="legend-color dot-normal"></span> Normal (&lt; 60%)</div>
+            <div class="legend-item"><span class="legend-color dot-depot"></span> Central Depot Hub</div>
+            <div class="legend-item"><span class="legend-line"></span> Java Optimized Route Path</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Smart Bin Telemetry -->
+      <div class="tab-pane" id="tab-bins-view">
+        <div class="pane-header">
+          <div>
+            <h2>IoT Bin Nodes Fleet Status</h2>
+            <p>Live telemetry streamed from ESP32 ultrasonic and odor sensors</p>
+          </div>
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="bin-search-input" placeholder="Search by Bin ID, Zone or Name...">
+          </div>
+        </div>
+
+        <div class="bins-grid" id="bins-cards-container">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- TAB 3: Route Dispatch Optimizer -->
+      <div class="tab-pane" id="tab-route-view">
+        <div class="pane-header">
+          <div>
+            <h2>Dynamic Route Optimization (Java TSP Engine)</h2>
+            <p>Real-time shortest-path route computed using Haversine distances to empty only critical bins</p>
+          </div>
+          <button class="btn btn-success" id="btn-dispatch-truck">
+            <i class="fa-solid fa-paper-plane"></i> Dispatch Municipal Truck TRK-01
+          </button>
+        </div>
+
+        <!-- Metric highlights -->
+        <div class="route-summary-cards">
+          <div class="summary-card">
+            <div class="sc-title">Critical Stops</div>
+            <div class="sc-value" id="route-stops-val">4 Stops</div>
+            <div class="sc-sub">Excludes non-urgent bins</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-title">Optimized Distance</div>
+            <div class="sc-value" id="route-distance-val">8.42 km</div>
+            <div class="sc-sub">Shortest Hamiltonian loop</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-title">Mileage Saved</div>
+            <div class="sc-value text-success" id="route-saved-val">6.78 km (44%)</div>
+            <div class="sc-sub">Compared to legacy fixed route</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-title">Est. Duration</div>
+            <div class="sc-value" id="route-duration-val">52 mins</div>
+            <div class="sc-sub">Includes 6 min per bin collection</div>
+          </div>
+        </div>
+
+        <div class="route-waypoints-table-container">
+          <h3>Sequence of Waypoints (Java Optimized Order)</h3>
+          <table class="data-table" id="route-table">
+            <thead>
+              <tr>
+                <th>Seq #</th>
+                <th>Stop / Location</th>
+                <th>Node ID</th>
+                <th>Fill Level</th>
+                <th>Distance From Prev</th>
+                <th>Target Waste</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="route-waypoints-body">
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 4: Citizen Grievances -->
+      <div class="tab-pane" id="tab-reports-view">
+        <div class="grievance-container">
+          <!-- Submit Form -->
+          <div class="report-form-card">
+            <div class="form-title">
+              <i class="fa-solid fa-bullhorn text-primary"></i>
+              <h3>Report Public Waste Issue</h3>
+            </div>
+            <p class="form-desc">Citizens can report overflowing trash, damaged bin lids, or foul smells directly to municipal authorities.</p>
+
+            <form id="citizen-report-form">
+              <div class="form-group">
+                <label>Your Name</label>
+                <input type="text" id="rep-name" required placeholder="e.g. Ramesh Kumar">
+              </div>
+              <div class="form-group">
+                <label>Contact Phone</label>
+                <input type="tel" id="rep-phone" required placeholder="e.g. +91 98450 12345">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nearest Bin (Optional)</label>
+                  <select id="rep-bin-select">
+                    <option value="">General Area / Not Near Bin</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Issue Category</label>
+                  <select id="rep-category" required>
+                    <option value="OVERFLOW">Severe Overflow</option>
+                    <option value="FOUL_ODOR">Foul Odor / Rotting Waste</option>
+                    <option value="DAMAGED_LID">Broken Lid / Vandalism</option>
+                    <option value="ILLEGAL_DUMPING">Illegal Roadside Dumping</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Description &amp; Landmark</label>
+                <textarea id="rep-desc" rows="3" required placeholder="Describe location details, extent of overflow, etc."></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">
+                <i class="fa-solid fa-paper-plane"></i> Submit Grievance Ticket
+              </button>
+            </form>
+          </div>
+
+          <!-- Existing Grievances Feed -->
+          <div class="reports-feed-card">
+            <div class="feed-header">
+              <h3>Municipal Grievance Registry</h3>
+              <span class="badge" id="reports-count-badge">2 Tickets</span>
+            </div>
+            <div class="reports-list" id="reports-list">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: Waste Analytics -->
+      <div class="tab-pane" id="tab-analytics-view">
+        <div class="analytics-grid">
+          <div class="chart-card">
+            <h3>Waste Composition Distribution</h3>
+            <p>Percentage of total municipal refuse collected by waste stream</p>
+            <div class="chart-container">
+              <canvas id="wastePieChart"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Hourly Fill Rates (24h Trend)</h3>
+            <p>Peak garbage generation hours across city zones</p>
+            <div class="chart-container">
+              <canvas id="fillTrendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- IoT Hardware Telemetry Simulator Drawer -->
+  <aside class="simulator-drawer" id="simulator-drawer">
+    <div class="sim-header">
+      <div class="sim-title">
+        <i class="fa-solid fa-microchip"></i>
+        <h3>IoT Hardware Sensor Simulator</h3>
+      </div>
+      <button class="btn-close" id="btn-close-sim">&times;</button>
+    </div>
+
+    <div class="sim-body">
+      <p class="sim-note">
+        Simulate an <strong>ESP32 Microcontroller</strong> transmitting sensor readings via HTTP POST to the Java backend (<code>/api/telemetry</code>).
+      </p>
+
+      <div class="form-group">
+        <label>Select Target Bin Node</label>
+        <select id="sim-bin-id">
+          <!-- Populated by JS -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <div class="slider-label">
+          <span>Fill Level (HC-SR04 Ultrasonic)</span>
+          <span class="val-badge" id="sim-fill-val">85%</span>
+        </div>
+        <input type="range" id="sim-fill-range" min="0" max="100" value="85">
+      </div>
+
+      <div class="form-group">
+        <div class="slider-label">
+          <span>Odor / Toxic Gas (MQ-135 Gas Sensor)</span>
+          <span class="val-badge" id="sim-gas-val">420 PPM</span>
+        </div>
+        <input type="range" id="sim-gas-range" min="50" max="800" value="420">
+      </div>
+
+      <div class="form-group">
+        <div class="slider-label">
+          <span>Waste Weight (HX711 Load Cell)</span>
+          <span class="val-badge" id="sim-weight-val">38.5 kg</span>
+        </div>
+        <input type="range" id="sim-weight-range" min="0" max="60" step="0.5" value="38.5">
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label>
+          <input type="checkbox" id="sim-tilt-toggle">
+          <span>Simulate Bin Knocked Over (MPU6050 Tilt Sensor)</span>
+        </label>
+      </div>
+
+      <div class="sim-actions">
+        <button class="btn btn-primary btn-block" id="btn-send-sim-telemetry">
+          <i class="fa-solid fa-tower-broadcast"></i> Transmit Packet to Java API
+        </button>
+        <button class="btn btn-outline btn-block" id="btn-auto-stream-sim">
+          <i class="fa-solid fa-play"></i> Start Auto Real-Time Influx
+        </button>
+      </div>
+
+      <!-- Raw Payload Preview -->
+      <div class="payload-preview">
+        <h4>Generated JSON Payload:</h4>
+        <pre><code id="sim-payload-code">{}</code></pre>
+      </div>
+    </div>
+  </aside>
+
+  <!-- External Libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Application Scripts -->
+  <script src="simulator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
